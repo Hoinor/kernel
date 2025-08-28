@@ -48,6 +48,7 @@ jobs:
         make olddefconfig
         
         # 准备构建环境
+        make scripts_basic
         make prepare
         make scripts
         
