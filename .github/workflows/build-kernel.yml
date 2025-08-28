@@ -38,11 +38,14 @@ jobs:
           
     - name: Configure kernel
       run: |
-        # 清理可能111的构建残留
+        # 清理可能的构建残留
         make mrproper || true
         
         # 使用GitHub Actions优化配置
         cp .config.github .config
+        
+        # 生成完整的配置文件
+        make olddefconfig
         
         # 准备构建环境
         make prepare
