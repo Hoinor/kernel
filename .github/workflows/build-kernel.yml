@@ -41,15 +41,23 @@ jobs:
         # 清理可能的构建残留
         make mrproper || true
         
+        # 检查关键文件是否存在（在任何构建命令之前）
+        echo "=== 检查工作目录 ==="
+        pwd
+        ls -la
+        echo "=== 检查scripts目录 ==="
+        ls -la scripts/ || echo "scripts directory not found"
+        echo "=== 检查Makefile.lib ==="
+        ls -la scripts/Makefile.lib || echo "Makefile.lib not found"
+        echo "=== 检查其他关键文件 ==="
+        ls -la Makefile || echo "Main Makefile not found"
+        ls -la .config.github || echo ".config.github not found"
+        
         # 使用GitHub Actions优化配置
         cp .config.github .config
         
         # 生成完整的配置文件
         make olddefconfig
-        
-        # 检查关键文件是否存在
-        ls -la scripts/
-        ls -la scripts/Makefile.lib || echo "Makefile.lib not found"
         
         # 准备构建环境
         make scripts_basic
