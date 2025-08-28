@@ -47,6 +47,10 @@ jobs:
         # 生成完整的配置文件
         make olddefconfig
         
+        # 检查关键文件是否存在
+        ls -la scripts/
+        ls -la scripts/Makefile.lib || echo "Makefile.lib not found"
+        
         # 准备构建环境
         make scripts_basic
         make prepare
