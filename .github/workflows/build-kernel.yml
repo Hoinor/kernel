@@ -1,0 +1,151 @@
+name: Build XanMod Kernel
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: recursive
+      
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          libncurses-dev \
+          bison \
+          flex \
+          libssl-dev \
+          libelf-dev \
+          bc \
+          kmod \
+          cpio \
+          rsync \
+          wget \
+          tar \
+          xz-utils
+          
+    - name: Configure kernel
+      run: |
+        # 清理可能的构建残留
+        make mrproper || true
+        
+        # 使用GitHub Actions优化配置
+        cp .config.github .config
+        
+        # 准备构建环境
+        make prepare
+        make scripts
+        
+    - name: Build kernel
+      run: |
+        # 编译内核，使用所有可用CPU核心
+        make -j$(nproc) LOCALVERSION=-xanmod-custom
+        
+    - name: Build modules
+      run: |
+        # 编译内核模块
+        make modules -j$(nproc)
+        
+    - name: Create kernel package
+      run: |
+        # 创建安装目录
+        mkdir -p kernel-package/boot
+        mkdir -p kernel-package/lib/modules
+        
+        # 复制内核文件
+        cp arch/x86/boot/bzImage kernel-package/boot/vmlinuz-$(make kernelrelease)
+        cp System.map kernel-package/boot/System.map-$(make kernelrelease)
+        cp .config kernel-package/boot/config-$(make kernelrelease)
+        
+        # 安装模块
+        make INSTALL_MOD_PATH=kernel-package modules_install
+        
+        # 复制安装脚本
+        cp install-kernel.sh kernel-package/
+        chmod +x kernel-package/install-kernel.sh
+        
+        # 创建安装说明
+        cat > kernel-package/INSTALL.md << 'EOF'
+        # XanMod内核安装说明
+        
+        ## 自动安装（推荐）
+        ```bash
+        sudo ./install-kernel.sh
+        ```
+        
+        ## 手动安装
+        ```bash
+        # 复制内核文件
+        sudo cp boot/* /boot/
+        sudo cp -r lib/modules/* /lib/modules/
+        
+        # 更新引导加载程序
+        sudo update-grub
+        
+        # 重启系统
+        sudo reboot
+        ```
+        
+        ## 验证安装
+        重启后运行以下命令验证修改：
+        ```bash
+        # 查看硬盘容量（放大3倍）
+        df -h
+        
+        # 查看内存信息（放大2倍）
+        cat /proc/meminfo
+        
+        # 查看CPU信息（放大2倍）
+        cat /proc/cpuinfo
+        ```
+        EOF
+        
+        # 创建压缩包
+        tar -czf kernel-$(make kernelrelease).tar.gz -C kernel-package .
+        
+    - name: Upload kernel artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: kernel-build-${{ github.sha }}
+        path: |
+          kernel-*.tar.gz
+          arch/x86/boot/bzImage
+          System.map
+          .config
+          install-kernel.sh
+        retention-days: 30
+        
+    - name: Create Release (on tag)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          kernel-*.tar.gz
+          arch/x86/boot/bzImage
+        body: |
+          ## XanMod内核构建
+          
+          此版本包含以下修改：
+          - 硬盘容量显示放大3倍
+          - 内存信息显示放大2倍  
+          - CPU信息显示放大2倍
+          
+          ### 安装说明
+          1. 下载 `kernel-*.tar.gz` 文件
+          2. 解压到根目录: `sudo tar -xzf kernel-*.tar.gz -C /`
+          3. 更新引导加载程序: `sudo update-grub`
+          4. 重启系统选择新内核
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
