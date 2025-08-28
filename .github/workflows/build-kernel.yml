@@ -55,6 +55,7 @@ jobs:
         
         # 为scripts目录下的脚本添加执行权限
         chmod +x scripts/*.sh
+        chmod +x scripts/remove-stale-files
         
         # 使用GitHub Actions优化配置
         cp .config.github .config
