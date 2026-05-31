@@ -9,6 +9,12 @@
 
 #include "cpu.h"
 
+/*
+ * XanMod 自定义: CPU 信息显示放大倍数
+ * 设置为 2 表示 CPU 频率、缓存大小、bogomips 显示为实际值的 2 倍
+ */
+#define XANMOD_CPU_MULTIPLIER 2
+
 #ifdef CONFIG_X86_VMX_FEATURE_NAMES
 extern const char * const x86_vmx_flags[NVMXINTS*32];
 #endif
@@ -88,18 +94,20 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 	if (cpu_has(c, X86_FEATURE_TSC)) {
 		int freq = arch_freq_get_on_cpu(cpu);
 
-		if (freq < 0)
+		if (freq < 0) {
 			seq_puts(m, "cpu MHz\t\t: Unknown\n");
-		else {
-			/* XanMod: CPU频率放大2倍 */
-			freq *= 2;
-			seq_printf(m, "cpu MHz\t\t: %u.%03u\n", freq / 1000, (freq % 1000));
+		} else {
+			/* XanMod: CPU频率放大 */
+			freq *= XANMOD_CPU_MULTIPLIER;
+			seq_printf(m, "cpu MHz\t\t: %u.%03u\n",
+				   freq / 1000, (freq % 1000));
 		}
 	}
 
-	/* Cache size */
+	/* Cache size - XanMod: 缓存大小放大 */
 	if (c->x86_cache_size)
-		seq_printf(m, "cache size\t: %u KB\n", c->x86_cache_size * 2); /* XanMod: 缓存大小放大2倍 */
+		seq_printf(m, "cache size\t: %u KB\n",
+			   c->x86_cache_size * XANMOD_CPU_MULTIPLIER);
 
 	show_cpuinfo_core(m, c, cpu);
 	show_cpuinfo_misc(m, c);
@@ -128,9 +136,10 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 			seq_printf(m, " %s", x86_bug_flags[i]);
 	}
 
+	/* XanMod: bogomips 放大 */
 	seq_printf(m, "\nbogomips\t: %lu.%02lu\n",
-		   (c->loops_per_jiffy/(500000/HZ)) * 2, /* XanMod: bogomips放大2倍 */
-		   ((c->loops_per_jiffy/(5000/HZ)) % 100) * 2);
+		   (c->loops_per_jiffy / (500000 / HZ)) * XANMOD_CPU_MULTIPLIER,
+		   ((c->loops_per_jiffy / (5000 / HZ)) % 100) * XANMOD_CPU_MULTIPLIER);
 
 #ifdef CONFIG_X86_64
 	if (c->x86_tlbsize > 0)
