@@ -38,62 +38,52 @@ jobs:
           
     - name: Configure kernel
       run: |
-        # 清理可能的构建残留
-        make mrproper || true
-        
-        # 检查关键文件是否存在（在任何构建命令之前）
-        echo "=== 检查工作目录 ==="
-        pwd
-        ls -la
-        echo "=== 检查scripts目录 ==="
-        ls -la scripts/ || echo "scripts directory not found"
-        echo "=== 检查Makefile.lib ==="
-        ls -la scripts/Makefile.lib || echo "Makefile.lib not found"
-        echo "=== 检查其他关键文件 ==="
-        ls -la Makefile || echo "Main Makefile not found"
-        ls -la .config.github || echo ".config.github not found"
-        
+        # 完全清理构建环境
+        make mrproper
+        make clean
+
         # 为scripts目录下的所有脚本添加执行权限
-        find scripts/ -type f -exec chmod +x {} \;
-        
+        find scripts/ -type f -exec chmod +x {} \; 2>/dev/null || true
+
         # 使用GitHub Actions优化配置
         cp .config.github .config
-        
+
         # 生成完整的配置文件
-        make olddefconfig
-        
-        # 准备构建环境
-        make scripts_basic
-        make prepare
-        make scripts
+        make ARCH=x86_64 olddefconfig
+
+        # 准备构建环境（按正确顺序）
+        make ARCH=x86_64 scripts_basic
+        make ARCH=x86_64 prepare0
+        make ARCH=x86_64 prepare
+        make ARCH=x86_64 scripts
         
     - name: Build kernel
       run: |
         # 编译内核，使用所有可用CPU核心
-        make -j$(nproc) LOCALVERSION=-xanmod-custom
-        
-    - name: Build modules
-      run: |
-        # 编译内核模块
-        make modules -j$(nproc)
+        # 注意：CONFIG_MODULES=n，所以不需要单独编译模块
+        make -j$(nproc) ARCH=x86_64 LOCALVERSION=-xanmod-custom bzImage
         
     - name: Create kernel package
       run: |
         # 创建安装目录
         mkdir -p kernel-package/boot
-        mkdir -p kernel-package/lib/modules
-        
+
+        # 获取内核版本
+        KERNEL_VERSION=$(make -s kernelrelease)
+        echo "Kernel version: $KERNEL_VERSION"
+
         # 复制内核文件
-        cp arch/x86/boot/bzImage kernel-package/boot/vmlinuz-$(make kernelrelease)
-        cp System.map kernel-package/boot/System.map-$(make kernelrelease)
-        cp .config kernel-package/boot/config-$(make kernelrelease)
-        
-        # 安装模块
-        make INSTALL_MOD_PATH=kernel-package modules_install
-        
-        # 复制安装脚本
-        cp install-kernel.sh kernel-package/
-        chmod +x kernel-package/install-kernel.sh
+        cp arch/x86/boot/bzImage kernel-package/boot/vmlinuz-${KERNEL_VERSION}
+        cp System.map kernel-package/boot/System.map-${KERNEL_VERSION}
+        cp .config kernel-package/boot/config-${KERNEL_VERSION}
+
+        # 注意：CONFIG_MODULES=n，所以没有模块需要安装
+
+        # 复制安装脚本（如果存在）
+        if [ -f install-kernel.sh ]; then
+          cp install-kernel.sh kernel-package/
+          chmod +x kernel-package/install-kernel.sh
+        fi
         
         # 创建安装说明
         cat > kernel-package/INSTALL.md << 'EOF'
